@@ -28,30 +28,53 @@
 
   var coin = {desc: "()"};
 
+  var teams = ["Призрачный", "Красный", "Белый"];
+
   //Game
-  function fieldCell() {
-    return {desc: "Трава"}
+  function grassCell() {
+    return {desc: "Трава", color: "#8DCF54"}
+  }
+
+  function seaCell() {
+    return {desc: "Море", color: "#82F2E2", noMove: true}
+  }
+
+  function shipCell() {
+    return {desc: "Корабль", team: 1, color: "#CD853F"}
   }
 
   function chestCell(money) {
-    return {desc: "Сундук", money: money};
+    return {desc: "Сундук", money: money, color: "#CD853F"};
   }
 
   function makePirate(id) {
-    return {desc: "Пират", id: id};
+    return {desc: "Пират", team: 1, id: id};
   }
 
   //
-  var fieldSize = 5;
+  var fieldSize = 7;
+
+  function posIndex(i, j) { return j * fieldSize + i; }
+
   var field = []; //new Array(fieldSize * fieldSize);
-  for (var i = 0; i < fieldSize * fieldSize; ++i)
-    field[i] = fieldCell();
-  var n = 0;
+  for (var j = 0; j < fieldSize; ++j) {
+    for (var i = 0; i < fieldSize; ++i) {
+      var k = posIndex(i, j);
+      if (j == 0 || j == fieldSize - 1 ||
+          i == 0 || i == fieldSize - 1)
+          field[k] = seaCell();
+      else
+          field[k] = grassCell();
+    }
+  }
+  var n = posIndex(1, 1);
   for (var i = 1; i <= 3; ++i) {
     for (var j = 1; j <= 3 - i; ++j) {
       field[n++] = chestCell(j);
     }
   }
+
+  field[posIndex(3, 0)] = shipCell();
 
   var pirates = [];
 
@@ -102,7 +125,10 @@
 
   function canMove(pirate, offx, offy) {
     var id = pirate.id, i = pirate.x + offx, j = pirate.y + offy;
-    if (i >= 0 && i < fieldSize && j >= 0 && j < fieldSize) {
+    if (i >= 0 && i < fieldSize &&
+        j >= 0 && j < fieldSize &&
+        !field[posIndex(i, j)].noMove)
+    {
       var pos = i + "_" + j;
       var label = $("#" + pos)
         .append($("<div></div>")
@@ -123,6 +149,8 @@
 
   function renderCell(cell) {
     var res = cell.desc;
+    if (cell.team)
+      res = teams[cell.team] + " " + res;
     if (cell.money)
       res += ("<br/>" + "Бабло: " + cell.money);
     return res;
@@ -164,8 +192,8 @@
   function drawCell(i, j) {
     var pos = i + "_" + j;
     var cell = getCell(i, j);
-    var td = $("#" + pos)
-    td.html(renderCell(cell));
+    var td = $("#" + pos);
+    td.html(renderCell(cell)).attr("bgcolor", cell.color);
     for (var pi in pirates) {
       var p = pirates[pi];
       if (p.x == i && p.y == j)
@@ -197,10 +225,18 @@
       table.append(row);
     }
 
+    //Game init
     {
       var somePirate = makePirate(1);
       pirates[1] = somePirate;
-      movePirate(somePirate, 1, 1);
+      movePirate(somePirate, 3, 1);
+
+      for (var i = 0; i < fieldSize; ++i) {
+        drawCell(i, 0);
+        drawCell(i, fieldSize - 1);
+        drawCell(0, i);
+        drawCell(fieldSize - 1, i);
+      }
     }
   });
   </script>
