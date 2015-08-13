@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    td {width: 80px; height: 80px}
+  </style>
+  <script type="text/javascript" src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
+  <script>
+
+  /**
+   * Randomize array element order in-place.
+   * Using Fisher-Yates shuffle algorithm.
+   */
+  function shuffleArray(array) {
+      for (var i = array.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var temp = array[i];
+          array[i] = array[j];
+          array[j] = temp;
+      }
+      return array;
+  }
+
+  function repeat(n, value ) {
+    return Array.apply(null, Array(n)).map(function(_) {return value;});
+  }
+
+  var coin = {desc: "()"};
+
+  //Game
+  function fieldCell() {
+    return {desc: "Трава"}
+  }
+
+  function chestCell(money) {
+    return {desc: "Сундук", money: money};
+  }
+
+  function makePirate(id) {
+    return {desc: "Пират", id: id};
+  }
+
+  //
+  var fieldSize = 5;
+  var field = []; //new Array(fieldSize * fieldSize);
+  for (var i = 0; i < fieldSize * fieldSize; ++i)
+    field[i] = fieldCell();
+  var n = 0;
+  for (var i = 1; i <= 3; ++i) {
+    for (var j = 1; j <= 3 - i; ++j) {
+      field[n++] = chestCell(j);
+    }
+  }
+
+  var pirates = [];
+
+  function tryMove(pirate) {
+    $(function () {
+      var id = pirate.id, i = pirate.x, j = pirate.y;
+      $(".pirate" + id).remove();
+      //var where = $("#pirate" + id).parent().attr("id").split("_");
+      //var i = where[0], j = where[1];
+      canMove(pirate, -1, 0);
+      canMove(pirate, 1, 0);
+      canMove(pirate, 0, -1);
+      canMove(pirate, 0, 1);
+      if (pirate.money) {
+        canDrop(pirate);
+      }
+      else if (getCell(i, j).money) {
+        canGrab(pirate);
+      }
+    });
+  }
+
+  function canGrab(pirate) {
+    var id = pirate.id, i = pirate.x, j = pirate.y;
+    var pos = i + "_" + j;
+    var label = $("#" + pos)
+      .append($("<div></div>")
+      .attr("class", "pirate" + id)
+      .text("Взять")
+      .click(function() {
+        grabMoney(pirate);
+      })
+    );
+  }
+
+  function canDrop(pirate) {
+    var id = pirate.id, i = pirate.x, j = pirate.y;
+    var pos = i + "_" + j;
+    var label = $("#" + pos)
+      .append($("<div></div>")
+      .attr("class", "pirate" + id)
+      .text("Положить")
+      .click(function() {
+        dropMoney(pirate);
+      })
+    );
+  }
+
+  function canMove(pirate, offx, offy) {
+    var id = pirate.id, i = pirate.x + offx, j = pirate.y + offy;
+    if (i >= 0 && i < fieldSize && j >= 0 && j < fieldSize) {
+      var pos = i + "_" + j;
+      var label = $("#" + pos)
+        .append($("<div></div>")
+        .attr("class", "pirate" + id)
+        .text("Сюда")
+        .click(function() {
+          movePirate(pirate, i, j);
+        })
+      );
+    }
+  }
+
+  /*function pirate(id) {
+    return $("<div></div>").attr("id", "pirate" + id).text("Пират " + id);
+  }*/
+
+  function getCell(i, j) {return field[j * fieldSize + i];}
+
+  function renderCell(cell) {
+    var res = cell.desc;
+    if (cell.money)
+      res += ("<br/>" + "Бабло: " + cell.money);
+    return res;
+  }
+
+  function renderPirate(pirate) {
+    var res = pirate.desc + " " + pirate.id;
+    if (pirate.money)
+      res += " с баблом"
+    return $("<div></div")
+      .attr("id", "pirate" + pirate.id)
+      .text(res)
+      .click(function() {
+        tryMove(pirate);
+      });
+  }
+
+  function grabMoney(pirate) {
+    var i = pirate.x, j = pirate.y;
+    $(function () {
+      getCell(i, j).money--;
+      pirate.money = 1;
+      movePirate(pirate);
+    })
+  }
+
+  function dropMoney(pirate) {
+    var i = pirate.x, j = pirate.y;
+    $(function () {
+      var cell = getCell(i, j);
+      if (cell.money === undefined)
+        cell.money = 0;
+      cell.money++;
+      pirate.money = 0;
+      movePirate(pirate);
+    })
+  }
+
+  function drawCell(i, j) {
+    var pos = i + "_" + j;
+    var cell = getCell(i, j);
+    var td = $("#" + pos)
+    td.html(renderCell(cell));
+    for (var pi in pirates) {
+      var p = pirates[pi];
+      if (p.x == i && p.y == j)
+        td.append(renderPirate(p));
+    }
+  }
+
+  function movePirate(pirate, i, j) {
+    $(function() {
+      var id = pirate.id;
+      if (i === undefined) i = pirate.x;
+      if (j === undefined) j = pirate.y;
+      pirate.x = i;
+      pirate.y = j;
+      $("#pirate" + id).remove();
+      $(".pirate" + id).remove();
+      drawCell(i, j);
+    });
+  }
+
+  $(function() {
+    var table = $("#board");
+    for (var j = 0; j < fieldSize; ++j) {
+      var row = $("<tr></tr>");
+      for (var i = 0; i < fieldSize; ++i) {
+        var pos = i + "_" + j;
+        row.append($("<td></td>").attr("id", pos).text(pos));
+      }
+      table.append(row);
+    }
+
+    {
+      var somePirate = makePirate(1);
+      pirates[1] = somePirate;
+      movePirate(somePirate, 1, 1);
+    }
+  });
+  </script>
+</head>
+<body>
+  <table id="board" border="1"></table>
+</body>
+</html>
