@@ -6,146 +6,11 @@
     td {width: 80px; height: 80px}
   </style>
   <script type="text/javascript" src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
-  <script>
+  <script type="text/javascript" src="Game.js"></script>
+  <script type="text/javascript">
 
-  /**
-   * Randomize array element order in-place.
-   * Using Fisher-Yates shuffle algorithm.
-   */
-  function shuffleArray(array) {
-      for (var i = array.length - 1; i > 0; i--) {
-          var j = Math.floor(Math.random() * (i + 1));
-          var temp = array[i];
-          array[i] = array[j];
-          array[j] = temp;
-      }
-      return array;
-  }
-
-  function repeat(n, value ) {
-    return Array.apply(null, Array(n)).map(function(_) {return value;});
-  }
-
-  var coin = {desc: "()"};
-
-  var teams = ["Призрачный", "Красный", "Белый"];
-
-  //Game
-  function grassCell() {
-    return {desc: "Трава", color: "#8DCF54"}
-  }
-
-  function seaCell() {
-    return {desc: "Море", color: "#82F2E2", noMove: true}
-  }
-
-  function shipCell() {
-    return {desc: "Корабль", team: 1, color: "#CD853F"}
-  }
-
-  function chestCell(money) {
-    return {desc: "Сундук", money: money, color: "#CD853F"};
-  }
-
-  function makePirate(id) {
-    return {desc: "Пират", team: 1, id: id};
-  }
-
-  //
   var fieldSize = 7;
-
-  function posIndex(i, j) { return j * fieldSize + i; }
-
-  var field = []; //new Array(fieldSize * fieldSize);
-  for (var j = 0; j < fieldSize; ++j) {
-    for (var i = 0; i < fieldSize; ++i) {
-      var k = posIndex(i, j);
-      if (j == 0 || j == fieldSize - 1 ||
-          i == 0 || i == fieldSize - 1)
-          field[k] = seaCell();
-      else
-          field[k] = grassCell();
-    }
-  }
-  var n = posIndex(1, 1);
-  for (var i = 1; i <= 3; ++i) {
-    for (var j = 1; j <= 3 - i; ++j) {
-      field[n++] = chestCell(j);
-    }
-  }
-
-  field[posIndex(3, 0)] = shipCell();
-
-  var pirates = [];
-
-  function tryMove(pirate) {
-    $(function () {
-      var id = pirate.id, i = pirate.x, j = pirate.y;
-      $(".pirate" + id).remove();
-      //var where = $("#pirate" + id).parent().attr("id").split("_");
-      //var i = where[0], j = where[1];
-      canMove(pirate, -1, 0);
-      canMove(pirate, 1, 0);
-      canMove(pirate, 0, -1);
-      canMove(pirate, 0, 1);
-      if (pirate.money) {
-        canDrop(pirate);
-      }
-      else if (getCell(i, j).money) {
-        canGrab(pirate);
-      }
-    });
-  }
-
-  function canGrab(pirate) {
-    var id = pirate.id, i = pirate.x, j = pirate.y;
-    var pos = i + "_" + j;
-    var label = $("#" + pos)
-      .append($("<div></div>")
-      .attr("class", "pirate" + id)
-      .text("Взять")
-      .click(function() {
-        grabMoney(pirate);
-      })
-    );
-  }
-
-  function canDrop(pirate) {
-    var id = pirate.id, i = pirate.x, j = pirate.y;
-    var pos = i + "_" + j;
-    var label = $("#" + pos)
-      .append($("<div></div>")
-      .attr("class", "pirate" + id)
-      .text("Положить")
-      .click(function() {
-        dropMoney(pirate);
-      })
-    );
-  }
-
-  function canMove(pirate, offx, offy) {
-    var id = pirate.id, i = pirate.x + offx, j = pirate.y + offy;
-    if (i >= 0 && i < fieldSize &&
-        j >= 0 && j < fieldSize &&
-        !field[posIndex(i, j)].noMove)
-    {
-      var pos = i + "_" + j;
-      var label = $("#" + pos)
-        .append($("<div></div>")
-        .attr("class", "pirate" + id)
-        .text("Сюда")
-        .click(function() {
-          movePirate(pirate, i, j);
-        })
-      );
-    }
-  }
-
-  /*function pirate(id) {
-    return $("<div></div>").attr("id", "pirate" + id).text("Пират " + id);
-  }*/
-
-  function getCell(i, j) {return field[j * fieldSize + i];}
+  var board = defaultBoard(fieldSize);
 
   function renderCell(cell) {
     var res = cell.desc;
@@ -164,53 +29,43 @@
       .attr("id", "pirate" + pirate.id)
       .text(res)
       .click(function() {
-        tryMove(pirate);
+        checkActions(pirate);
       });
   }
 
-  function grabMoney(pirate) {
-    var i = pirate.x, j = pirate.y;
-    $(function () {
-      getCell(i, j).money--;
-      pirate.money = 1;
-      movePirate(pirate);
-    })
-  }
-
-  function dropMoney(pirate) {
-    var i = pirate.x, j = pirate.y;
-    $(function () {
-      var cell = getCell(i, j);
-      if (cell.money === undefined)
-        cell.money = 0;
-      cell.money++;
-      pirate.money = 0;
-      movePirate(pirate);
-    })
+  function renderAction(who, action) {
+    var res = $("<div></div>")
+      .text(action.desc)
+      .attr("class", "pirate" + who.id)
+      //do action
+      .click(function () {
+        $(".pirate" + who.id).remove();
+        var oldX = who.x, oldY = who.y;
+        action.act(who, board);
+        drawCell(oldX, oldY);
+        drawCell(action.x, action.y);
+      });
+    return res;
   }
 
   function drawCell(i, j) {
+    var cell = board.cell(i, j);
     var pos = i + "_" + j;
-    var cell = getCell(i, j);
     var td = $("#" + pos);
     td.html(renderCell(cell)).attr("bgcolor", cell.color);
-    for (var pi in pirates) {
-      var p = pirates[pi];
+    for (var p of board.piratesOn(i, j)) {
       if (p.x == i && p.y == j)
         td.append(renderPirate(p));
     }
   }
 
-  function movePirate(pirate, i, j) {
-    $(function() {
-      var id = pirate.id;
-      if (i === undefined) i = pirate.x;
-      if (j === undefined) j = pirate.y;
-      pirate.x = i;
-      pirate.y = j;
-      $("#pirate" + id).remove();
-      $(".pirate" + id).remove();
-      drawCell(i, j);
+  function checkActions(p) {
+    $(function () {
+      $(".pirate" + p.id).remove();
+      for (var action of board.possibleActions(p)) {
+        var pos = action.x + "_" + action.y;
+        $("#" + pos).append(renderAction(p, action));
+      }
     });
   }
 
@@ -227,9 +82,9 @@
 
     //Game init
     {
-      var somePirate = makePirate(1);
-      pirates[1] = somePirate;
-      movePirate(somePirate, 3, 1);
+      var somePirate = makePirate(1, 3, 1);
+      board.pirate(1, somePirate);
+      drawCell(somePirate.x, somePirate.y);
 
       for (var i = 0; i < fieldSize; ++i) {
         drawCell(i, 0);
