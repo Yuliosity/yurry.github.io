@@ -43,10 +43,10 @@
   function renderAction(who, action) {
     var res = $("<div></div>")
       .text(action.desc)
-      .attr("class", "pirate" + who.id)
+      .attr("class", "action")
       //do action
       .click(function () {
-        $(".pirate" + who.id).remove();
+        $(".action").remove();
         var oldX = who.x, oldY = who.y;
         var res = action.act(who, board);
         //Assuming we received an array of obligatory actions...
@@ -76,7 +76,7 @@
 
   function checkActions(p) {
     $(function () {
-      $(".pirate" + p.id).remove();
+      $(".action").remove();
       renderActions(p, board.possibleActions(p));
     });
   }

@@ -40,6 +40,10 @@ function chestTile(money) {
   return {desc: "Сундук", money: money, color: "#CD853F"};
 }
 
+function cannibalTile() {
+  return {desc: "Людоед", team: 0, color: "#FF4411"};
+}
+
 var labyrinths = [
   {desc: "Лес", steps: 1, color: "#5D9F34"},
   {desc: "Пустыня", steps: 2, color: "#DDDD55"},
@@ -82,7 +86,7 @@ function horseTile() {
 }
 
 function iceTile() {
-  return {desc: "Каток", offsets: ["last"], color: "#CC77FF"};
+  return {desc: "Каток", offsets: ["last"], color: "#77AAFF"};
 }
 
 //---------------
@@ -261,6 +265,9 @@ function emptyBoard(size) {
         });
       }
       else {
+        var teamId = this.tile(p.x, p.y).team;
+        if (teamId !== undefined && teamId !== p.team)
+          this.die(p);
         this._completeTurn();
         return true;
       }
@@ -298,6 +305,13 @@ function emptyBoard(size) {
       this._move(p, pos.x, pos.y);
     },
 
+    //Death from anything
+    die: function(p) {
+      this.drop(p);
+      this.pirates[p.id] = undefined;
+      //TODO: team loses if doesn't have pirates left
+    },
+
     //(private) Ends the current player turn
     _completeTurn: function() {
       this.turnIndex = (this.turnIndex + 1) % this.players.length;
@@ -333,6 +347,7 @@ function testBoard(s) {
   board.tile(s + 1, 2, arrowTile("↕︎", [offsets.n, offsets.s]));
 
   board.tile(2, 2, iceTile());
+  board.tile(3, 3, cannibalTile());
   //Some labyrinths
   board.tile(1, 2, labyrinthTile(2));
   board.tile(2, 5, labyrinthTile(1));
@@ -346,8 +361,10 @@ function testBoard(s) {
   var pCount = 0;
   for (var teamId of board.players) {
     var pos = board.shipPosition(teamId);
-    var somePirate = makePirate(teamId, ++pCount, pos.x, pos.y);
-    board.pirate(somePirate.id, somePirate);
+    for (var i = 0; i < 3; ++i) {
+      var somePirate = makePirate(teamId, ++pCount, pos.x, pos.y);
+      board.pirate(somePirate.id, somePirate);
+    }
   }
 
 
