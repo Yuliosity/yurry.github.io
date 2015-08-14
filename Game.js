@@ -1,4 +1,4 @@
-
+//---- Common methods ----
 /**
  * Randomize array element order in-place.
  * Using Fisher-Yates shuffle algorithm.
@@ -17,29 +17,29 @@ function repeat(n, value ) {
   return Array.apply(null, Array(n)).map(function(_) {return value;});
 }
 
-var teams = [
-  {name: "Призрачный", pirate: "Призрак"},
-  {name: "Красный", pirate: "Пират"},
-  {name: "Белый", pirate: "Корсар"},
-];
+//---- Board tiles ----
 
-//Game
+//Dumb plain grass.
 function grassTile() {
   return {desc: "Трава", color: "#8DCF54"}
 }
 
+//Sea.
 function seaTile() {
-  return {desc: "Море", color: "#82F2E2", noMove: true}
+  return {desc: "Море", color: "#82F2E2", sea: true}
 }
 
+//Ship belonging to a team.
 function shipTile(teamId) {
   return {desc: teams[teamId].name + " корабль", team: teamId, color: "#CD853F"}
 }
 
+//Chest contains some money.
 function chestTile(money) {
   return {desc: "Сундук", money: money, color: "#CD853F"};
 }
 
+//Cannibal kills any pirate he meets.
 function cannibalTile() {
   return {desc: "Людоед", team: 0, color: "#FF4411"};
 }
@@ -70,45 +70,56 @@ function arrowTile(desc, offs) {
   return {desc: "Стрелка " + desc, offsets: offs, color: "#DDDD55"};
 }
 
-var horseOffsets = {
-  nww: {x: 2,  y: -1},
-  nnw: {x: 1,  y: -2},
-  nne: {x: -1, y: -2},
-  nee: {x: -2, y: -1},
-  see: {x: -2, y: 1},
-  sse: {x: -1, y: 2},
-  ssw: {x: 1,  y: 2},
-  sww: {x: 2,  y: 1}
-}
+var horseOffsets = /*{*/ [
+  /*nww:*/ {x: 2,  y: -1},
+  /*nnw:*/ {x: 1,  y: -2},
+  /*nne:*/ {x: -1, y: -2},
+  /*nee:*/ {x: -2, y: -1},
+  /*see:*/ {x: -2, y: 1},
+  /*sse:*/ {x: -1, y: 2},
+  /*ssw:*/ {x: 1,  y: 2},
+  /*sww:*/ {x: 2,  y: 1}
+/*}*/ ]
 
 function horseTile() {
-  return {desc: "Конь", offsets: horseOffs, color: "#DDDD55"};
+  return {desc: "Конь", offsets: horseOffsets, color: "#DDDD55"};
 }
 
 function iceTile() {
   return {desc: "Каток", offsets: ["last"], color: "#77AAFF"};
 }
 
-//---------------
+function chuteTile() {
+  return {desc: "Парашют", chute: true, color: "#FFAA77"};
+}
+
+//---- Pirates and their teams ----
+var teams = [
+  {name: "Призрачный", pirate: "Призрак"},
+  {name: "Красный", pirate: "Пират"},
+  {name: "Белый", pirate: "Корсар"},
+];
 
 function makePirate(teamId, id, i, j) {
   return {
     desc: teams[teamId].pirate, team: teamId, id: id, x: i, y: j,
-    /*move: function(ti, tj) {
-      this.x = ti; this.y = tj;
-    }*/
   };
 }
 
+//---- Game board "class" ----
 function emptyBoard(size) {
   return {
     size: size,
     _field: [],
 
-    //TODO
+    //TODO: configurable teams
     players: [1, 2],
+    pirates: [],
+
+    //
     turnIndex: 0,
 
+    //Gets or sets a tile.
     tile: function(i, j, what) {
       if (what === undefined)
         return this._field[size * j + i];
@@ -116,7 +127,8 @@ function emptyBoard(size) {
         this._field[size * j + i] = what;
     },
 
-    pirates: [],
+    //Gets or sets a pirate.
+    //TODO: should it be there?
     pirate: function(i, what) {
       if (what === undefined)
         return this.pirates[i];
@@ -148,8 +160,12 @@ function emptyBoard(size) {
           return this._indexPos(i);
     },
 
+    //Returns an array of what a pirate can do this turn.
+    //TODO: remove "who" and "where" as long they can be stored in the closure
+    //POSSIBLE TODO: make polymorphic method in tiles?
     possibleActions: function(p) {
       var res = [];
+      //Wait for his team's turn
       if (p.team !== this.players[this.turnIndex])
         return res;
       //In the labyrinth
@@ -161,12 +177,14 @@ function emptyBoard(size) {
           }
         });
       }
+      //Can go wherever is possible
       else for (var off in offsets) {
         var i = p.x + offsets[off].x,
             j = p.y + offsets[off].y;
         if (i >= 0 && i < this.size &&
             j >= 0 && j < this.size &&
-            !this.tile(i, j).noMove)
+            //Can swim only if already in the sea
+            this.tile(i, j).sea == this.tile(p.x, p.y).sea)
           res.push({
             action: "move", x: i, y: j,
             desc: "Идти", act: function(who, where) {
@@ -174,6 +192,8 @@ function emptyBoard(size) {
             }
           });
       }
+
+      var tile = this.tile(p.x, p.y);
       //Drop the money if the pirate has it
       if (p.money)
         res.push({
@@ -182,8 +202,8 @@ function emptyBoard(size) {
             return where.drop(who);
           }
         });
-      //Grab the money it he doesn't
-      else if (this.tile(p.x, p.y).money)
+      //Grab the money if he doesn't
+      else if (tile.money)
         res.push({
           action: "grab", x: p.x, y: p.y,
           desc: "Взять", act: function(who, where) {
@@ -191,10 +211,13 @@ function emptyBoard(size) {
           }
         });
       //Drive the ship
-      if (this.tile(p.x, p.y).shipTeam) {
+      if (tile.team === p.team) {
+        //TODO: vertical teams
         var driveOffsets = [{x: 1, y: 0}, {x: -1, y: 0}];
         for (var off of driveOffsets) {
           var i = p.x + off.x, j = p.y + off.y;
+          if (i < 1 || i > this.size - 2)
+            continue;
           res.push({
             action: "drive", x: i, y: j,
             desc: "Плыть", act: function(who, where) {
@@ -203,10 +226,20 @@ function emptyBoard(size) {
           });
         }
       }
+      //Flee with a parachute
+      if (tile.chute) {
+        var pos = this.shipPosition(p.team);
+        res.push({
+          action: "move", x: pos.x, y: pos.y,
+          desc: "Лететь", act: function(who, where) {
+            return where.move(who, this.x, this.y);
+          }
+        })
+      }
       return res;
     },
 
-    //Possible player moves
+    //Methods which axtually perform player actions
     //Drive a ship with a pirate
     drive: function(p, i, j) {
       var ship = this.tile(p.x, p.y);
@@ -242,7 +275,7 @@ function emptyBoard(size) {
       var board = this;
       this.piratesOn(i, j).forEach(function (tp) {
         if (tp.team !== p.team && tp.step === p.step)
-          board.flee(tp);
+          board.kick(tp);
       });
 
       if (this.tile(i, j).offsets !== undefined) {
@@ -297,11 +330,10 @@ function emptyBoard(size) {
       return false;
     },
 
-    //Flee to the team ship
-    flee: function(p, withMoney) {
+    //Get kicked to the team ship
+    kick: function(p) {
       var pos = this.shipPosition(p.team);
-      if (!withMoney)
-        this.drop(p);
+      this.drop(p);
       this._move(p, pos.x, pos.y);
     },
 
@@ -348,6 +380,7 @@ function testBoard(s) {
 
   board.tile(2, 2, iceTile());
   board.tile(3, 3, cannibalTile());
+  board.tile(4, 4, chuteTile());
   //Some labyrinths
   board.tile(1, 2, labyrinthTile(2));
   board.tile(2, 5, labyrinthTile(1));
