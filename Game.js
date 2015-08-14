@@ -221,7 +221,7 @@ function emptyBoard(size) {
           res.push({
             action: "drive", x: i, y: j,
             desc: "Плыть", act: function(who, where) {
-              return where.drive(who, i, j);
+              return where.drive(who, this.x, this.y);
             }
           });
         }
@@ -245,9 +245,9 @@ function emptyBoard(size) {
       var ship = this.tile(p.x, p.y);
       this.tile(p.x, p.y, seaTile());
       this.tile(i, j, ship);
-      for (var p of this.piratesOn(who.x, who.y))
-        where.move(p, this.x, this.y);
-      _completeTurn();
+      for (var tp of this.piratesOn(p.x, p.y))
+        this._move(tp, i, j);
+      this._completeTurn();
       return true;
     },
 
