@@ -5,19 +5,17 @@
   <style>
     td {width: 80px; height: 80px}
   </style>
-  <script type="text/javascript" src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
+  <script type="text/javascript" src="jquery.min.js"></script>
   <script type="text/javascript" src="Game.js"></script>
   <script type="text/javascript">
 
-  var fieldSize = 7;
-  var board = defaultBoard(fieldSize);
+  var halfFieldSize = 3;
+  var board = testBoard(halfFieldSize);
 
-  function renderCell(cell) {
-    var res = cell.desc;
-    if (cell.team)
-      res = teams[cell.team] + " " + res;
-    if (cell.money)
-      res += ("<br/>" + "Бабло: " + cell.money);
+  function renderTile(tile) {
+    var res = tile.desc;
+    if (tile.money)
+      res += ("<br/>" + "Бабло: " + tile.money);
     return res;
   }
 
@@ -25,12 +23,21 @@
     var res = pirate.desc + " " + pirate.id;
     if (pirate.money)
       res += " с баблом"
+    if (pirate.step)
+      res += (" _" + pirate.step);
     return $("<div></div")
       .attr("id", "pirate" + pirate.id)
       .text(res)
       .click(function() {
         checkActions(pirate);
       });
+  }
+
+  function renderActions(p, actions) {
+    for (var action of actions) {
+      var pos = action.x + "_" + action.y;
+      $("#" + pos).append(renderAction(p, action));
+    }
   }
 
   function renderAction(who, action) {
@@ -41,18 +48,26 @@
       .click(function () {
         $(".pirate" + who.id).remove();
         var oldX = who.x, oldY = who.y;
-        action.act(who, board);
-        drawCell(oldX, oldY);
-        drawCell(action.x, action.y);
+        var res = action.act(who, board);
+        //Assuming we received an array of obligatory actions...
+        if (Array.isArray(res))
+          renderActions(who, res);
+        drawTile(oldX, oldY);
+        drawTile(action.x, action.y);
+        drawTurn();
       });
     return res;
   }
 
-  function drawCell(i, j) {
-    var cell = board.cell(i, j);
+  function drawTurn() {
+    $("#turn").text(board.currentTeam().name + " ход");
+  }
+
+  function drawTile(i, j) {
+    var tile = board.tile(i, j);
     var pos = i + "_" + j;
     var td = $("#" + pos);
-    td.html(renderCell(cell)).attr("bgcolor", cell.color);
+    td.html(renderTile(tile)).attr("bgcolor", tile.color);
     for (var p of board.piratesOn(i, j)) {
       if (p.x == i && p.y == j)
         td.append(renderPirate(p));
@@ -62,18 +77,15 @@
   function checkActions(p) {
     $(function () {
       $(".pirate" + p.id).remove();
-      for (var action of board.possibleActions(p)) {
-        var pos = action.x + "_" + action.y;
-        $("#" + pos).append(renderAction(p, action));
-      }
+      renderActions(p, board.possibleActions(p));
     });
   }
 
   $(function() {
     var table = $("#board");
-    for (var j = 0; j < fieldSize; ++j) {
+    for (var j = 0; j < board.size; ++j) {
       var row = $("<tr></tr>");
-      for (var i = 0; i < fieldSize; ++i) {
+      for (var i = 0; i < board.size; ++i) {
         var pos = i + "_" + j;
         row.append($("<td></td>").attr("id", pos).text(pos));
       }
@@ -82,21 +94,19 @@
 
     //Game init
     {
-      var somePirate = makePirate(1, 3, 1);
-      board.pirate(1, somePirate);
-      drawCell(somePirate.x, somePirate.y);
-
-      for (var i = 0; i < fieldSize; ++i) {
-        drawCell(i, 0);
-        drawCell(i, fieldSize - 1);
-        drawCell(0, i);
-        drawCell(fieldSize - 1, i);
+      //Open the sea tiles
+      for (var i = 0; i < board.size; ++i) {
+        drawTile(i, 0);
+        drawTile(i, board.size - 1);
+        drawTile(0, i);
+        drawTile(board.size - 1, i);
       }
     }
   });
   </script>
 </head>
 <body>
+  <div id="turn"></div>
   <table id="board" border="1"></table>
 </body>
 </html>
