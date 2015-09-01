@@ -3,6 +3,8 @@
  * Randomize array element order in-place.
  * Using Fisher-Yates shuffle algorithm.
  */
+//"use strict"; //Commented due to a Safari bug
+
 function shuffleArray(array) {
     for (var i = array.length - 1; i > 0; i--) {
         var j = Math.floor(Math.random() * (i + 1));
@@ -32,8 +34,9 @@ var offsets = {
 function Tile(desc, color, attrs) {
   this.desc = desc;
   this.color = color;
-  for (attr in attrs)
-    this[attr] = attrs[attr];
+  for (var attr in attrs)
+    if (attr != "type")
+      this[attr] = attrs[attr];
 }
 
 var Tiles = {
@@ -49,13 +52,13 @@ var Tiles = {
   },
 
   //Ship belonging to a team.
-  ship: function(teamId) {
-    return new Tile(teams[teamId].name + " корабль", "#CD853F", {team: teamId});
+  ship: function(params) {
+    return new Tile(teams[params.team].name + " корабль", "#CD853F", params);
   },
 
   //Chest contains some money.
-  chest: function(money) {
-    return new Tile("Сундук", "#CD853F", {money: money});
+  chest: function(params) {
+    return new Tile("Сундук", "#CD853F", params);
   },
 
   //Cannibal kills any pirate he meets.
@@ -72,13 +75,14 @@ var Tiles = {
   ],
 
   //TODO: clone?
-  labyrinth: function(steps) {
-    return this._labyrinths[steps - 1];
+  labyrinth: function(params) {
+    return this._labyrinths[params.steps - 1];
   },
 
   //Arrows force a pirate to take an additional turn in any of provided directions.
-  arrow: function(desc, offs) {
-    return new Tile("Стрелка " + desc, "#DDDD55", {offsets: offs});
+  arrow: function(params) {
+    var coordOffs = params.offs.map(function(off) {return offsets.off;});
+    return new Tile("Стрелка " + params.desc, "#DDDD55", {offsets: coordOffs});
   },
 
   _horseOffsets: /*{*/ [
@@ -136,9 +140,9 @@ function Board(size) {
     //Gets or sets a tile.
   this.tile = function(i, j, what) {
       if (what === undefined)
-        return this._field[size * j + i];
+        return this._field[this.size * j + i];
       else
-        this._field[size * j + i] = what;
+        this._field[this.size * j + i] = what;
   };
 
   //Gets or sets a pirate.
@@ -243,12 +247,12 @@ function Board(size) {
     //Flee with a parachute
     if (tile.chute) {
       var pos = this.shipPosition(p.team);
-      res.push({
+      res = [{
         action: "move", x: pos.x, y: pos.y,
         desc: "Лететь", act: function(who, where) {
           return where.move(who, this.x, this.y);
         }
-      })
+      }];
     }
     return res;
   };
@@ -278,6 +282,9 @@ function Board(size) {
     else {
       p.x = i; p.y = j;
       p.step = this.tile(i, j).steps ? 1 : undefined;
+      //Sink the gold
+      if (this.tile(i, j).sea)
+        p.money = 0;
     }
   };
 
@@ -368,6 +375,25 @@ function Board(size) {
   };
 }
 
+var test = [
+  [{"type": "sea"}, {"type": "sea"}, {"type": "ship", "team": 1}, {"type": "sea"}, {"type": "sea"}],
+  [{"type": "sea"}, {"type": "chest", "money": 3}, {"type": "grass"}, {"type": "grass"}, {"type": "sea"}],
+  [{"type": "sea"}, {"type": "chest", "money": 1}, {"type": "labyrinth", "steps": 2}, {"type": "chute"}, {"type": "sea"}],
+  [{"type": "sea"}, {"type": "arrow", "desc": "↕︎", "offs": ["n", "s"]}, {"type": "grass"}, {"type": "cannibal"}, {"type": "sea"}],
+  [{"type": "sea"}, {"type": "sea"}, {"type": "ship", "team": 2}, {"type": "sea"}, {"type": "sea"}],
+]
+
+//Makes a board from the server JSON data
+function serverBoard(arr) {
+  var res = new Board(arr.length); //Assuming the data correctness
+  for (var j = 0; j < arr.length; ++j) {
+    for (var i = 0; i < arr.length; ++i) {
+      res.tile(i, j, Tiles[arr[i][j]["type"]](arr[i][j]));
+    }
+  }
+  return res;
+}
+
 function testBoard(s) {
   var size = 2 * s + 1;
   var board = new Board(size);
@@ -384,25 +410,25 @@ function testBoard(s) {
   var n = 1;
   for (var i = 1; i <= 3; ++i) {
     for (var j = 1; j <= 3 - i; ++j) {
-      board.tile(n++, 1, Tiles.chest(j));
+      board.tile(n++, 1, Tiles.chest({money: j}));
     }
   }
   //Some arrows
-  board.tile(s, 2, Tiles.arrow("↔︎", [offsets.w, offsets.e]));
-  board.tile(s + 1, 2, Tiles.arrow("↕︎", [offsets.n, offsets.s]));
+  board.tile(s, 2, Tiles.arrow({desc:"↔︎", offs: ["w", "e"]}));
+  board.tile(s + 1, 2, Tiles.arrow({desc: "↕︎", offs: ["n", "s"]}));
 
   board.tile(2, 2, Tiles.ice());
   board.tile(3, 3, Tiles.cannibal());
   board.tile(4, 4, Tiles.chute());
   //Some labyrinths
-  board.tile(1, 2, Tiles.labyrinth(2));
-  board.tile(2, 5, Tiles.labyrinth(1));
+  board.tile(1, 2, Tiles.labyrinth({steps: 2}));
+  board.tile(2, 5, Tiles.labyrinth({steps: 1}));
 
   //TODO: shuffling
 
   //Ships for two teams
-  board.tile(s, 0, Tiles.ship(1));
-  board.tile(s, size - 1, Tiles.ship(2));
+  board.tile(s, 0, Tiles.ship({team: 1}));
+  board.tile(s, size - 1, Tiles.ship({team: 2}));
   //One pirate for each team
   var pCount = 0;
   for (var teamId of board.players) {
