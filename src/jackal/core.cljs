@@ -1,33 +1,27 @@
 (ns jackal.core)
 
-(defn tile [desc color attrs]
-  (merge {:desc desc :color color} attrs)
+(defn tile [type attrs]
+  (merge {:type type} attrs)
 )
 
-(def teams [
-  {:name "Призрачный" :pirate "Призрак"}
-  {:name "Красный"    :pirate "Пират"  }
-  {:name "Белый"      :pirate "Корсар" }
-])
-
 (defn grass []
-  (tile "Трава" "#8DCF54" {})
+  (tile :grass {})
 )
 
 (defn sea []
-  (tile "Море" "#82F2E2" {:sea true})
+  (tile :sea {})
 )
 
 (defn ship "Ship belonging to a team." [team]
-  (tile (concat (get :name (nth team teams))) "#CD853F")
+  (tile :ship {:team team})
 )
 
 (defn chest "Chest contains some money." [money]
-  (tile "Сундук" "#CD853F" {:money money})
+  (tile :chest {:money money})
 )
 
 (defn cannibal "Cannibal kills any pirate he meets." []
-  (tile "Людоед" "#FF4411" {:team 0})
+  (tile :cannibal {:team 0})
 )
 
 (defn maze "Labyrinths require additional turns to pass." [steps]
@@ -52,7 +46,7 @@
 
 (defn arrow "Arrows force a pirate to take an additional turn in any of provided directions." [desc offs]
   (let [coordOffs map #(get % offsets) off]
-    (tile (concat "Стрелка " desc) "#DDDD55" {:offsets coordOffs})
+    (tile :arrow {:offsets coordOffs})
   )
 )
 
@@ -68,40 +62,112 @@
 ])
 
 (defn horse "Horses are like arrows, and force a pirate to take a turn of a chess knight." []
-  (tile "Конь" "#DDDD55" {:offsets horseOffsets})
+  (tile :horse {:offsets horseOffsets})
 )
 
 (defn ice "Ice tile makes the pirate to repeat the last move." []
-  (tile "Каток" "#77AAFF" {:offsets ["last"])
+  (tile :ice {})
 )
 
 (defn chute "Parachute allows to \"teleport\" onto a ship, including carried money." []
-  (tile "Парашют" "#FFAA77" {:chute true})
+  (tile :chute {})
 )
 
-(defn pirate [teamId id pos]
-  {:desc (get :pirate (nth teamId teams)) :team teamId :id id :pos pos}
+(defn pirate [teamId pos]
+  {:desc (get :pirate (nth teamId teams)) :team teamId :pos pos}
 )
 
 (defn action [type desc pos] {:type type :desc desc :pos pos})
 
 (defn moveAction [id pos] (action :move "Идти" pos)
-;(defn )
 
-(deftype board [tiles pirates players turn]
-  Object
-  (getTile [this pos] ()) ;TODO
-  (possibleActions [this id]
-    ([])
-  ) ;TODO
-  (piratesOn [this pos] (filter #(= pos (get :pos %)) pirates))
-  (shipPosition [this team] (some #(when (= team (get :team %) %)) tiles))
-  (driveShip [this team newPos] ()) ;TODO
-  (movePirate [this id newPos] ()) ;TODO
-  (kickPirate [this id] ()) ;TODO
-  (killPirate [this id] ()) ;TODO
-  (grabMoney [this id] ()) ;TODO
-  (dropMoney [this id] ()) ;TODO
-  (currentTurn [this] turn)
-  (endTurn [this] ()) ;TODO
+; (deftype Board
+;   [^:volatile-mutable tiles
+;    ^:volatile-mutable pirates players turn
+;   ]
+;   Object
+;   (get-tile [this pos] ()) ;TODO
+;   (possible-actions [this id]
+;     ([])
+;   ) ;TODO
+;   (pirates-on [this pos] (filter #(= pos (get :pos %)) pirates))
+;   (ship-position [this team] (some #(when (= team (get :team %) %)) tiles))
+;   (drive-ship! [this team newPos] ()) ;TODO
+;   (move-pirate! [this id newPos] ()) ;TODO
+;   (kick-pirate! [this id] ()) ;TODO
+;   (kill-pirate! [this id] ()) ;TODO
+;   (grab-money! [this id] ()) ;TODO
+;   (drop-money! [this id] ()) ;TODO
+;   (current-turn [this] turn)
+;   (end-turn! [this] ()) ;TODO
+; )
+
+(defn board [tiles pirates players]
+  {:tiles tiles :pirates pirates :players players :turn 0}
+)
+
+(defn get-tile [board pos]
+  (get pos (get :tiles board))
+)
+
+(defn pirates-on [board pos]
+  (filter #(= pos (get :pos %)) (get :pirates board))
+)
+
+(defn grab-money [board id]
+
+)
+
+(defn drop-money [board id]
+  (let
+    [
+    ]
+    body
+  )
+)
+
+(defn move-pirate [board id pos]
+  (update-in board [:pirates id :pos] #(pos))
+)
+
+(defn kill-pirate [board id]
+  (update board :pirates #(dissoc % id))
+)
+
+(defn current-turn [board] (get :turn board))
+
+(defn end-turn [board]
+  (let [{players :players} board]
+    (update board :turn #(mod (inc %) (count players)))
+  )
+)
+
+(def test-tiles
+  [ (grass) (arrow "<->" ["e" "w"]) (grass) (chest 1) (cannibal)
+    (arrow "_\|" ["se"]) (chest 2) (grass) (grass) (chute)
+    (maze 2) (grass) (maze 3) (grass) (grass)
+    (grass) (ice) (chest 1) (grass) (grass)
+    (grass) (arrow "|" ["s" "n"]) (grass) (grass) (grass)
+  ]
+
+(def test-board [half-size]
+  (let
+    [ size (inc (* 2 half-size))
+      border? #(or (zero? %) (= size %))
+      tilemap (for [i (range size) j (range size) :let [k (+ (* size (dec j)) (dec i))]]
+        [ (point i j)
+          (if (or (border? i) (border? j))
+            (sea)
+            (nth k test-tiles)
+          )
+        ]
+      )
+      start-pos-1 (point half-size 0)
+      start-pos-2 (point half-size size)
+      tiles (union (into {} tilemap) {start-pos-1 (ship 1) start-pos-2 (ship 2)})
+      pirates [(pirate 1 1 start-pos-1) (pirate 2 2 start-pos-2)]
+      players [1 2]
+    ]
+    (board tiles pirates players)
+  )
 )
